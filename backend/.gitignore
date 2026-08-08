@@ -1,0 +1,78 @@
+## Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+## Environment files
+.env
+.env.*
+
+## Build outputs
+dist/
+build/
+out/
+
+## Dependency directories
+.pnp/
+.pnp.js
+
+## Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+logs/*
+
+## Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+## Socket files (for websockets / IPC)
+*.sock
+*.socket
+
+## Coverage
+coverage/
+.nyc_output/
+
+## Testing
+junit.xml
+test-results/
+
+## IDEs and editors
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## TypeScript
+*.tsbuildinfo
+
+## Build artifacts
+*.tgz
+
+## ESLint
+.eslintcache
+
+## Parcel cache
+.cache/
+
+## Optional npm cache directory
+.npm
+
+## PM2
+pm2.pid
+pm2.log
+
+# Keep lockfiles in repo (package-lock.json / yarn.lock) - do not ignore unless intended
+
+# End of file
