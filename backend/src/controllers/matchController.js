@@ -43,10 +43,10 @@ export const createMatch = async (req, res) => {
         status: getMatchStatus(startTime, endTime),
       }).returning();
 
-      res.status(201).json(newMatch);
+      return res.status(201).json(newMatch);
     } catch (error) {
       console.error('Error creating match:', error);
-      res.status(500).json({ error: 'An error occurred while creating the match' });
+      return res.status(500).json({ error: 'An error occurred while creating the match' });
     }
   } catch (error) {
     if (error.name === 'ZodError') {
