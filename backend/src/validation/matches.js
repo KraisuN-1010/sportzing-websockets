@@ -6,10 +6,8 @@ export const MATCH_STATUS = {
   FINISHED: 'finished',
 };
 
-const isoDateString = z.string().refine((value) => {
-  const isoRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
-  return isoRegex.test(value) && !Number.isNaN(Date.parse(value));
-}, {
+const isoDateString = z.string().datetime({
+  offset: true,
   message: 'Invalid ISO date string',
 });
 

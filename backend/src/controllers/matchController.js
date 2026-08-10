@@ -48,10 +48,9 @@ export const createMatch = async (req, res) => {
       console.error('Error creating match:', error);
       res.status(500).json({ error: 'An error occurred while creating the match' });
     }
-    res.status(201).json(newMatch);
   } catch (error) {
     if (error.name === 'ZodError') {
-      res.status(400).json({ error: error.errors });
+      res.status(400).json({ error: error.issues });
     } else {
       console.error('Error creating match:', error);
       res.status(500).json({ error: 'An error occurred while creating the match' });
