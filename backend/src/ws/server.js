@@ -30,15 +30,42 @@ const broadcast = (webSocketServer, payload) => {
 
 export const attachWebSocketServer = (httpServer) => {
   const webSocketServer = new WebSocketServer({
-    server: httpServer,
     path: '/ws',
     maxPayload: 1024 * 1024,
   });
 
-  webSocketServer.on('connection', async (clientSocket, incomingReq) => {
-    // Track liveness from the moment the socket connects, before the
-    // arcjet check resolves — arcjet.protect() is async, so without this
-    // a slow check could leave the socket untracked for a beat.
+  // Intercept HTTP upgrade requests before WebSocket connection
+  // This allows Arcjet to deny requests before socket creation
+  httpServer.on('upgrade', async (req, socket, head) => {
+    // Only handle /ws path
+    if (req.url !== '/ws') {
+      socket.destroy();
+      return;
+    }
+
+    try {
+      const arcjetDecision = await wsArcjet.protect(req);
+      if (arcjetDecision.isDenied()) {
+        // 1008 indicates policy violation per RFC 6455
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // Request allowed: proceed with WebSocket upgrade
+      webSocketServer.handleUpgrade(req, socket, head, (clientSocket) => {
+        webSocketServer.emit('connection', clientSocket, req);
+      });
+    } catch (arcjetError) {
+      console.error('Arcjet WebSocket validation failed:', arcjetError);
+      // 1011 indicates internal server processing error
+      socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+      socket.destroy();
+    }
+  });
+
+  webSocketServer.on('connection', (clientSocket, incomingReq) => {
+    // Track liveness from the moment the socket connects
     clientSocket.isAlive = true;
     clientSocket.on('pong', () => {
       clientSocket.isAlive = true;
@@ -48,22 +75,8 @@ export const attachWebSocketServer = (httpServer) => {
       console.error('WebSocket client error:', err);
     });
 
-    try {
-      // Validates connection against security policies before accepting payload traffic
-      const arcjetDecision = await wsArcjet.protect(incomingReq);
-      if (arcjetDecision.isDenied()) {
-        // 1008 indicates policy violation per RFC 6455
-        clientSocket.close(1008, 'Access Denied');
-        return;
-      }
-
-      sendJson(clientSocket, { type: 'Welcome' });
-    } catch (validationError) {
-      console.error('Arcjet validation failed:', validationError);
-
-      // 1011 indicates internal server processing error
-      clientSocket.close(1011, 'Internal Server Error');
-    }
+    // At this point, client has passed Arcjet checks
+    sendJson(clientSocket, { type: 'Welcome' });
   });
 
   webSocketServer.on('error', (err) => {
