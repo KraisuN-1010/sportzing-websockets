@@ -8,4 +8,7 @@ if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('[user]') || 
 export const env = {
   DATABASE_URL: process.env.DATABASE_URL,
   PORT: process.env.PORT || 3000,
-}
+  DB_MAX_CONNECTIONS: process.env.DB_MAX_CONNECTIONS || 5,
+  DB_IDLE_TIMEOUT_MS: process.env.DB_IDLE_TIMEOUT_MS || 10000,
+  DB_CONNECTION_TIMEOUT_MS: process.env.DB_CONNECTION_TIMEOUT_MS || 5000,
+};

@@ -1,7 +1,16 @@
-import app from "./src/app.js";
+import http from 'http';
+import app from './src/app.js';
+import { attachWebSocketServer } from './src/ws/server.js';
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// Binds raw HTTP protocol to Express to support WebSocket upgrades
+const server = http.createServer(app);
+
+const { broadcastMatchCreated } = attachWebSocketServer(server);
+app.locals.broadcastMatchCreated = broadcastMatchCreated;
+
+server.listen(PORT, HOST, () => {
+  console.log(`Server is running on http://${HOST}:${PORT}`);
 });
