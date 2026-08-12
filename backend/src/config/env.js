@@ -11,4 +11,7 @@ export const env = {
   DB_MAX_CONNECTIONS: process.env.DB_MAX_CONNECTIONS || 5,
   DB_IDLE_TIMEOUT_MS: process.env.DB_IDLE_TIMEOUT_MS || 10000,
   DB_CONNECTION_TIMEOUT_MS: process.env.DB_CONNECTION_TIMEOUT_MS || 5000,
+  ARCJET_KEY: process.env.ARCJET_KEY,
+  ARCJET_ENV: process.env.ARCJET_ENV,
+  ARCJET_MODE: process.env.ARCJET_MODE || 'DRY_RUN',
 };

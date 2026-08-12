@@ -1,3 +1,4 @@
+// middleware/validateRequest.js
 import { ApiError } from '../utils/apiError.js';
 
 export const validateRequest = (schema, source = 'body') => (req, _res, next) => {
@@ -6,6 +7,11 @@ export const validateRequest = (schema, source = 'body') => (req, _res, next) =>
     return next(new ApiError(400, 'Validation failed', result.error.issues));
   }
 
-  req[source] = result.data;
+  if (source === 'query') {
+    req.validatedQuery = result.data; 
+  } else {
+    req[source] = result.data;
+  }
+
   next();
 };
