@@ -3,6 +3,51 @@ import { wsArcjet } from '../config/arcjet.js';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
+const MESSAGE_TYPE = {
+  SUBSCRIBE: 'subscribe',
+  UNSUBSCRIBE: 'unsubscribe',
+};
+
+const MAX_SUBSCRIPTIONS_PER_CLIENT = 50;
+const matchSubscribers = new Map();
+
+const subscribe = (matchId, clientSocket) => {
+  if (!matchSubscribers.has(matchId)) {
+    matchSubscribers.set(matchId, new Set());
+  }
+
+  matchSubscribers.get(matchId).add(clientSocket);
+};
+
+const unsubscribe = (matchId, clientSocket) => {
+  const subscribers = matchSubscribers.get(matchId);
+
+  if (!subscribers) return;
+
+  subscribers.delete(clientSocket);
+  if (subscribers.size === 0) matchSubscribers.delete(matchId);
+};
+
+const cleanUpSubscriptions = (clientSocket) => {
+  for (const matchId of clientSocket.subscriptions) {
+    unsubscribe(matchId, clientSocket);
+  }
+};
+
+const broadCastToMatch = (matchId, payload) => {
+  const subscribers = matchSubscribers.get(matchId);
+
+  if (!subscribers || subscribers.size === 0) return;
+
+  const message = JSON.stringify(payload);
+
+  for (const client of subscribers) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
+};
+
 const sendJson = (clientSocket, payload) => {
   if (clientSocket.readyState !== WebSocket.OPEN) return;
 
@@ -13,7 +58,7 @@ const sendJson = (clientSocket, payload) => {
   }
 };
 
-const broadcast = (webSocketServer, payload) => {
+const broadcastToAll = (webSocketServer, payload) => {
   let message;
   try {
     message = JSON.stringify(payload);
@@ -28,17 +73,52 @@ const broadcast = (webSocketServer, payload) => {
   }
 };
 
+const handleMessage = (clientSocket, data) => {
+  let message;
+
+  try {
+    message = JSON.parse(data.toString());
+  } catch {
+    sendJson(clientSocket, { type: 'error', message: 'Invalid JSON' });
+    return;
+  }
+
+  if (message?.type === MESSAGE_TYPE.SUBSCRIBE && Number.isSafeInteger(message.matchId) && message.matchId > 0) {
+    // Reject new subscriptions if client has reached the per-client limit
+    if (!clientSocket.subscriptions.has(message.matchId) && clientSocket.subscriptions.size >= MAX_SUBSCRIPTIONS_PER_CLIENT) {
+      sendJson(clientSocket, { type: 'error', message: 'Subscription limit reached' });
+      return;
+    }
+
+    subscribe(message.matchId, clientSocket);
+    clientSocket.subscriptions.add(message.matchId);
+    sendJson(clientSocket, { type: 'subscribed', matchId: message.matchId });
+    return;
+  }
+
+  if (message?.type === MESSAGE_TYPE.UNSUBSCRIBE && Number.isInteger(message.matchId)) {
+    unsubscribe(message.matchId, clientSocket);
+    clientSocket.subscriptions.delete(message.matchId);
+    sendJson(clientSocket, { type: 'unsubscribed', matchId: message.matchId });
+    return;
+  }
+
+  sendJson(clientSocket, { type: 'error', message: 'Unknown message type' });
+};
+
 export const attachWebSocketServer = (httpServer) => {
   const webSocketServer = new WebSocketServer({
-    path: '/ws',
+    noServer: true,
     maxPayload: 1024 * 1024,
   });
 
   // Intercept HTTP upgrade requests before WebSocket connection
   // This allows Arcjet to deny requests before socket creation
   httpServer.on('upgrade', async (req, socket, head) => {
-    // Only handle /ws path
-    if (req.url !== '/ws') {
+    // Compare pathname only, so query strings (e.g. /ws?token=...) still match
+    const { pathname } = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
+
+    if (pathname !== '/ws') {
       socket.destroy();
       return;
     }
@@ -64,15 +144,27 @@ export const attachWebSocketServer = (httpServer) => {
     }
   });
 
-  webSocketServer.on('connection', (clientSocket, incomingReq) => {
+  webSocketServer.on('connection', (clientSocket) => {
     // Track liveness from the moment the socket connects
     clientSocket.isAlive = true;
+    clientSocket.subscriptions = new Set();
+
     clientSocket.on('pong', () => {
       clientSocket.isAlive = true;
     });
 
     clientSocket.on('error', (err) => {
       console.error('WebSocket client error:', err);
+    });
+
+    // Clean up this client's subscriptions when it disconnects
+    // (tab closed, network drop, or heartbeat termination)
+    clientSocket.on('close', () => {
+      cleanUpSubscriptions(clientSocket);
+    });
+
+    clientSocket.on('message', (data) => {
+      handleMessage(clientSocket, data);
     });
 
     // At this point, client has passed Arcjet checks
@@ -88,7 +180,7 @@ export const attachWebSocketServer = (httpServer) => {
   const heartbeatInterval = setInterval(() => {
     for (const clientSocket of webSocketServer.clients) {
       if (clientSocket.isAlive === false) {
-        clientSocket.terminate();
+        clientSocket.terminate(); // triggers 'close', which cleans up subscriptions
         continue;
       }
       clientSocket.isAlive = false;
@@ -101,11 +193,15 @@ export const attachWebSocketServer = (httpServer) => {
   });
 
   const broadcastMatchCreated = (matchData) => {
-    broadcast(webSocketServer, {
+    broadcastToAll(webSocketServer, {
       type: 'match_created',
       data: matchData,
     });
   };
 
-  return { broadcastMatchCreated };
+  const broadcastCommentaryToMatch = (matchId, comment) => {
+    broadCastToMatch(matchId, { type: 'commentary', data: comment });
+  };
+
+  return { broadcastMatchCreated, broadcastCommentaryToMatch };
 };
