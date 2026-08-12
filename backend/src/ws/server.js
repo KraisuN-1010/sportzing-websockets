@@ -8,6 +8,7 @@ const MESSAGE_TYPE = {
   UNSUBSCRIBE: 'unsubscribe',
 };
 
+const MAX_SUBSCRIPTIONS_PER_CLIENT = 50;
 const matchSubscribers = new Map();
 
 const subscribe = (matchId, clientSocket) => {
@@ -82,7 +83,13 @@ const handleMessage = (clientSocket, data) => {
     return;
   }
 
-  if (message?.type === MESSAGE_TYPE.SUBSCRIBE && Number.isInteger(message.matchId)) {
+  if (message?.type === MESSAGE_TYPE.SUBSCRIBE && Number.isSafeInteger(message.matchId) && message.matchId > 0) {
+    // Reject new subscriptions if client has reached the per-client limit
+    if (!clientSocket.subscriptions.has(message.matchId) && clientSocket.subscriptions.size >= MAX_SUBSCRIPTIONS_PER_CLIENT) {
+      sendJson(clientSocket, { type: 'error', message: 'Subscription limit reached' });
+      return;
+    }
+
     subscribe(message.matchId, clientSocket);
     clientSocket.subscriptions.add(message.matchId);
     sendJson(clientSocket, { type: 'subscribed', matchId: message.matchId });
