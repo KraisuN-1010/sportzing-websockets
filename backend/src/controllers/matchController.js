@@ -1,8 +1,9 @@
 import { listMatches, createMatch } from '../services/matchService.js';
 
+// controllers/matchController.js
 export const getAllMatches = async (req, res, next) => {
   try {
-    const matches = await listMatches(req.query);
+    const matches = await listMatches(req.validatedQuery); 
     res.status(200).json(matches);
   } catch (error) {
     next(error);
