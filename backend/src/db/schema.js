@@ -1,4 +1,4 @@
-import { integer, jsonb, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const matchStatus = pgEnum('match_status', ['scheduled', 'live', 'finished']);
 
@@ -13,7 +13,10 @@ export const matches = pgTable('matches', {
   homeScore: integer('home_score').default(0).notNull(),
   awayScore: integer('away_score').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => ({
+  createdAtIndex: index('idx_matches_created_at').on(table.createdAt),
+  sportStatusIndex: index('idx_matches_sport_status').on(table.sport, table.status),
+}));
 
 export const commentary = pgTable('commentary', {
   id: serial('id').primaryKey(),

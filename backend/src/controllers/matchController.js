@@ -1,59 +1,23 @@
-import { createMatchSchema, listMatchesQuerySchema } from '../validation/matches.js';
-import { matches } from '../db/schema.js';
-import { db } from '../config/db.js';
-import { getMatchStatus } from '../utils/matchStatus.js';
+import { listMatches, createMatch } from '../services/matchService.js';
 
-const MAX_LIMIT = 100;
-
-export const getAllMatches = async (req, res) => {
+export const getAllMatches = async (req, res, next) => {
   try {
-    const parsedData = listMatchesQuerySchema.safeParse(req.query);
-
-    if (!parsedData.success) {
-      return res.status(400).json({
-        error: "Invalid query.",
-        details: JSON.stringify(parsedData.error)
-      });
-    }
-
-    const limit = Math.min(parsedData.data.limit ?? 50, MAX_LIMIT);
-    const allMatches = await db
-      .select()
-      .from(matches)
-      .orderBy(matches.createdAt)
-      .limit(limit)
-
-    res.status(200).json(allMatches);
+    const matches = await listMatches(req.query);
+    res.status(200).json(matches);
   } catch (error) {
-    res.status(500).json({ error: 'An error occurred while fetching matches' });
+    next(error);
   }
 };
 
-export const createMatch = async (req, res) => {
+export const createMatchController = async (req, res, next) => {
   try {
-    const validatedData = createMatchSchema.parse(req.body);
-    const { startTime, endTime, homeScore, awayScore } = validatedData;
-    try {
-      const newMatch = await db.insert(matches).values({
-        ...validatedData,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        homeScore: homeScore ?? 0,
-        awayScore: awayScore ?? 0,
-        status: getMatchStatus(startTime, endTime),
-      }).returning();
+    const createdMatch = await createMatch(req.body);
 
-      return res.status(201).json(newMatch);
-    } catch (error) {
-      console.error('Error creating match:', error);
-      return res.status(500).json({ error: 'An error occurred while creating the match' });
+    if (res.app.locals.broadcastMatchCreated) {
+      res.app.locals.broadcastMatchCreated(createdMatch);
     }
+    res.status(201).json(createdMatch);
   } catch (error) {
-    if (error.name === 'ZodError') {
-      res.status(400).json({ error: error.issues });
-    } else {
-      console.error('Error creating match:', error);
-      res.status(500).json({ error: 'An error occurred while creating the match' });
-    }
+    next(error);
   }
 };

@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { getAllMatches, createMatch } from '../controllers/matchController.js';
+import { getAllMatches, createMatchController } from '../controllers/matchController.js';
+import { validateRequest } from '../middleware/validateRequest.js';
+import { listMatchesQuerySchema, createMatchSchema } from '../validation/matches.js';
 
 const matchRouter = Router();
 
-matchRouter.get('/', getAllMatches);
-
-matchRouter.post('/', createMatch);
+matchRouter.get('/', validateRequest(listMatchesQuerySchema, 'query'), getAllMatches);
+matchRouter.post('/', validateRequest(createMatchSchema), createMatchController);
 
 export default matchRouter;
